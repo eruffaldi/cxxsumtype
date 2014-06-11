@@ -297,7 +297,7 @@ public:
 	sumtype(const T & what) : _index(bytype<T>::index) 
 	{
 		static_assert(bytype<T>::index != -1,"only supported types with explicit type match");
-		std::cout << "copy T " << typeid(T).name() << std::endl;
+		//std::cout << "copy T " << typeid(T).name() << std::endl;
 		rtype::ctorcopy(_index,value,(unsigned char*)&what); 
 	}
 
