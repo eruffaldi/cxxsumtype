@@ -101,17 +101,13 @@ int main()
 	};
 	std::cout << opt.visit(xvisit()) << std::endl;
 
-	// can we replace it with lambdas?
-	// 	auto x = make_tuple(f1,f2,..)
-	// 
-	// but lookup will be indexed std::get<0>(t)
-	#if 0
-	std::cout << opt.tvisit(
-			std::make_tuple(
-				[] (int x) { return (int)10; },
-					[] (std::string w) { return (int)20; }
-			)) << std::endl;
-	#endif
+	int a = 10;
+	std::cout << opt.select(
+			[a] (int x) { return (int)10+a; },
+			[] (std::string w) { return (int)20; }
+		);
+
+
 
 	opt.clear();
 	std::cout << (bool)opt << std::endl;

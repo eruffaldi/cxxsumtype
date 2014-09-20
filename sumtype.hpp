@@ -6,6 +6,7 @@
 #include <typeinfo>
 #include <functional>
 
+
 template <typename T>
 struct Alignof
 {
@@ -36,8 +37,70 @@ struct tmax<Pred, First, Args...>
 };
 
 
+template <class R>
+struct extractfx;
+
+template <class R, class B>
+struct extractfx<R(B) const>
+{
+	typedef B first;
+	typedef R result;
+};
+
+template <class R, class First, class... Args>
+struct extractfx<R(First,Args...) const>
+{
+	typedef R result;
+	typedef First first;
+};
+
+template <class R, class B>
+struct extractfx<R(B)>
+{
+	typedef B first;
+	typedef R result;
+};
+
+template <class R, class First, class... Args>
+struct extractfx<R(First,Args...)>
+{
+	typedef R result;
+	typedef First first;
+};
+
+
+template<class FPtr>
+struct function_traits;
+
+template<class T, class C>
+struct function_traits<T (C::*)>
+{
+    typedef T signature;
+};
+
+template<typename... Args>
+struct lambdalist;
+
+template<class F>
+struct lambdalist<F>
+{
+	  typedef typename function_traits<decltype(&F::operator())>::signature signature;
+	  typedef typename extractfx<signature>::result result;
+};
+
+template<class F,typename... Args>
+struct lambdalist<F,Args...>
+{
+  typedef typename function_traits<decltype(&F::operator())>::signature signature;
+  typedef typename extractfx<signature>::result result;
+};
+
+
+
 template <typename... Args>
 struct find_biggest;
+
+
  
 template <typename First>
 struct find_biggest<First>
@@ -163,14 +226,6 @@ struct find_indexrun<current, First>
 			throw std::bad_exception();
 	}
 
-	template <typename... FArgs>
-	static typename std::function< typename std::tuple_element<0,std::tuple<FArgs...> >::type >::result_type tvisit(int index, unsigned char * value, std::tuple<FArgs...> && visitor)
-	{
-		if(index == current)
-			return std::get<current>(visitor)(*(First*)value);
-		else
-			throw std::bad_exception();
-	}
 
 	static size_t size(int index)
 	{
@@ -247,6 +302,7 @@ struct find_indexrun<current,First, Args...>
 			return next::visit(index,value,visitor);
 	}
 
+#if 0
 	template <typename... FArgs>
 	static typename std::function< typename std::tuple_element<0,std::tuple<FArgs...> >::type >::result_type tvisit(int index, unsigned char * value, std::tuple<FArgs...> && visitor)
 	{
@@ -255,6 +311,7 @@ struct find_indexrun<current,First, Args...>
 		else
 			return next::tvisit(index,value,visitor);
 	}
+#endif
 
 };
 
@@ -383,13 +440,29 @@ public:
 		return rtype::visit(_index,value,visitor);
 	}
 
-#if 0
-	template <typename... FArgs>
-	typename std::function< typename std::tuple_element<0,std::tuple<FArgs...> >::type >::result_type  tvisit(std::tuple<FArgs...> && visitor)
+	template <typename F>
+	auto select(F x) -> typename lambdalist<F>::result
 	{
-		return rtype::tvisit(_index,value,visitor);
+		typedef typename function_traits<decltype(&F::operator())>::signature signature;
+		typedef typename extractfx<signature>::first first;
+
+		if(bytype<first>::index == _index)
+			return x(*(first*)value);
+		else
+			throw std::exception();
 	}
-#endif
+	
+	template <typename F, typename... FArgs>
+	auto select(F x, FArgs... fx) -> typename lambdalist<F>::result
+	{
+		typedef typename function_traits<decltype(&F::operator())>::signature signature;
+		typedef typename extractfx<signature>::first first;
+
+		if(bytype<first>::index == _index)
+			return x(*(first*)value);
+		else
+			return select(fx...);
+	}
 
 
 	int is(int i) const { return _index == i; }
