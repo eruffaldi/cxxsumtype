@@ -1,3 +1,25 @@
+/************************************************************************************
+
+Filename    :   sumtype.hpp
+Content     :   Algebrical Data Types for C++11
+Created     :   July 2014
+Authors     :   Emanuele Ruffaldi
+
+Copyright   :   Emanuele Ruffaldi
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+************************************************************************************/
 #pragma once
 #include <utility> 
 #include <iostream>
@@ -6,29 +28,39 @@
 #include <typeinfo>
 #include <functional>
 
+//-------------------------------------------------
+// Alignment and Size
+//-------------------------------------------------
 
+
+/// this class is used as a functional for providing alignment as constexpr value as used in tmax class
 template <typename T>
 struct Alignof
 {
 	static constexpr size_t value = alignof(T);
 };
 
+/// this class is used as a functional for providing size as constexpr value as used in tmax class
 template <typename T>
 struct Sizeof
 {
 	static constexpr size_t value = sizeof(T);
 };
 
-// similar to the newcpp post
+/// given a list of type in Args and a Predicate accepting the type this produces the type with maximum value. Implemented with the variadic recursive pattern
+/// The output of this class is a type "type"
+/// this is taken from the newcpp post
 template <template <typename> class Pred, typename... Args>
 struct tmax;
  
+/// single type returns type
 template <template <typename> class Pred, typename First>
 struct tmax<Pred, First>
 {
 	typedef First type;
 };
  
+/// recursive step using std::conditional
 template <template <typename> class Pred, typename First, typename... Args>
 struct tmax<Pred, First, Args...>
 {
@@ -37,64 +69,9 @@ struct tmax<Pred, First, Args...>
 };
 
 
-template <class R>
-struct extractfx;
-
-template <class R, class B>
-struct extractfx<R(B) const>
-{
-	typedef B first;
-	typedef R result;
-};
-
-template <class R, class First, class... Args>
-struct extractfx<R(First,Args...) const>
-{
-	typedef R result;
-	typedef First first;
-};
-
-template <class R, class B>
-struct extractfx<R(B)>
-{
-	typedef B first;
-	typedef R result;
-};
-
-template <class R, class First, class... Args>
-struct extractfx<R(First,Args...)>
-{
-	typedef R result;
-	typedef First first;
-};
-
-
-template<class FPtr>
-struct function_traits;
-
-template<class T, class C>
-struct function_traits<T (C::*)>
-{
-    typedef T signature;
-};
-
-template<typename... Args>
-struct lambdalist;
-
-template<class F>
-struct lambdalist<F>
-{
-	  typedef typename function_traits<decltype(&F::operator())>::signature signature;
-	  typedef typename extractfx<signature>::result result;
-};
-
-template<class F,typename... Args>
-struct lambdalist<F,Args...>
-{
-  typedef typename function_traits<decltype(&F::operator())>::signature signature;
-  typedef typename extractfx<signature>::result result;
-};
-
+//-------------------------------------------------
+// Alignment and Size - alternative version
+//-------------------------------------------------
 
 
 template <typename... Args>
@@ -132,39 +109,122 @@ struct find_biggestalign<First, Args...>
   typedef typename std::conditional<alignof(First) >= alignof(next),First,next>::type type;
 };
 
+
+//-------------------------------------------------
+// Lambda Expression Lists
+//-------------------------------------------------
+
+
+/// this class extracts information from a function type
+template <class R>
+struct extractfx;
+
+/// specialization for a const function with single parameter
+template <class R, class B>
+struct extractfx<R(B) const>
+{
+	typedef B first;  /// first argument type
+	typedef R result; /// return type
+};
+
+/// specialization for multiple ones
+template <class R, class First, class... Args>
+struct extractfx<R(First,Args...) const>
+{
+	typedef R result;
+	typedef First first;
+};
+
+/// non const specialization
+template <class R, class B>
+struct extractfx<R(B)>
+{
+	typedef B first;
+	typedef R result;
+};
+
+/// non const specialization
+template <class R, class First, class... Args>
+struct extractfx<R(First,Args...)>
+{
+	typedef R result;
+	typedef First first;
+};
+
+/// class for extracting information from function members pointers and lambdas
+template<class FPtr>
+struct function_traits;
+
+template<class T, class C>
+struct function_traits<T (C::*)>
+{
+    typedef T signature;
+};
+
+/// this class extracts information from a list of lambdas, at the moment returns the first return type
+template<typename... Args>
+struct lambdalist;
+
+/// single lambda
+template<class F>
+struct lambdalist<F>
+{
+	  typedef typename function_traits<decltype(&F::operator())>::signature signature;
+	  typedef typename extractfx<signature>::result result;
+};
+
+/// recursive
+template<class F,typename... Args>
+struct lambdalist<F,Args...>
+{
+  typedef typename function_traits<decltype(&F::operator())>::signature signature;
+  typedef typename extractfx<signature>::result result;
+};
+
+//-------------------------------------------------
+// Indexed Management of Type List
+//-------------------------------------------------
+
+/// this class allows to return the looked-th type from the Args list of types
+/// current is the moving index in the recursion pattern
 template <size_t looked, size_t current, typename... Args>
 struct find_index;
  
+/// single type
 template <size_t looked, size_t current, typename First>
 struct find_index<looked, current, First>
 {
-	typedef First type;
+	typedef typename std::conditional<looked == current,First,void>::type type; /// 
 };
  
+/// multiple types
 template <size_t looked, size_t current, typename First, typename... Args>
 struct find_index<looked,current,First, Args...>
 {
-  typedef typename find_index<looked,current+1,Args...>::type next;
+  typedef typename find_index<looked,current+1,Args...>::type next; /// next in the recursive pattern
   typedef typename std::conditional<looked == current,First,next>::type type;
 };
 
-
-
-template <class looked, int current, typename... Args>
+/// this class allows to return the index of the given looked type in the list Args
+/// the result is stored in the "index" enumeration element, -1 in case of not found
+template <typename looked, int current, typename... Args>
 struct find_type;
  
-template <class looked, int current, typename First>
+/// last type
+template <typename looked, int current, typename First>
 struct find_type<looked, current, First>
 {
 	enum { index = std::is_same<looked,First>::value ? current : -1 };
 };
- 
+
+/// recursion 
 template <class looked, int current, typename First, typename... Args>
 struct find_type<looked,current,First, Args...>
 {
 	enum { index = std::is_same<looked,First>::value ?  current : find_type<looked,current+1,Args...>::index };
 };
 
+/// same as find_type but 
 template <class looked, int current, typename... Args>
 struct find_typeex;
  
@@ -180,18 +240,22 @@ struct find_typeex<looked,current,First, Args...>
 	enum { index = std::is_same<looked,First>::value ?  current : find_type<looked,current+1,Args...>::index };
 };
 
+/// recursive helper class
 template <int current, typename... Args>
 struct find_indexrun;
  
+/// recursive helper class, last recursion
 template <int current, typename First>
 struct find_indexrun<current, First>
 {
+	/// destruction of type First
 	static void destroy(int index, unsigned char * value)
 	{
 		if(index == current)
 			((First*)value)->~First();
 	}
 
+	/// copy construction
 	static void ctorcopy(int index, unsigned char * value, const unsigned char * other)
 	{
 		if(index == current)
@@ -203,6 +267,7 @@ struct find_indexrun<current, First>
 			throw std::bad_exception();
 	}
 
+	/// move construction
 	static void ctormove(int index, unsigned char * value, const unsigned char * other)
 	{
 		if(index == current)
@@ -217,6 +282,7 @@ struct find_indexrun<current, First>
 		}
 	}
 
+	/// visit over class
 	template <class T>
 	static typename std::remove_reference<T>::type::result_type visit(int index, unsigned char * value, T && visitor)
 	{
@@ -226,12 +292,13 @@ struct find_indexrun<current, First>
 			throw std::bad_exception();
 	}
 
-
+	/// size in bytes
 	static size_t size(int index)
 	{
 		return index == current ? sizeof(First) : 0;
 	}
 
+	/// assignment
 	static void assign(int index, unsigned char * value, const unsigned char * other)
 	{
 		if(index == current)
@@ -242,7 +309,8 @@ struct find_indexrun<current, First>
 
 };
 
-
+/// recursive helper class
+/// recursion step, delegates to next if not matching by index
 template <int current, typename First, typename... Args>
 struct find_indexrun<current,First, Args...>
 {
@@ -302,22 +370,13 @@ struct find_indexrun<current,First, Args...>
 			return next::visit(index,value,visitor);
 	}
 
-#if 0
-	template <typename... FArgs>
-	static typename std::function< typename std::tuple_element<0,std::tuple<FArgs...> >::type >::result_type tvisit(int index, unsigned char * value, std::tuple<FArgs...> && visitor)
-	{
-		if(index == current)
-			return std::get<current>(visitor)(*(First*)value);
-		else
-			return next::tvisit(index,value,visitor);
-	}
-#endif
-
 };
 
+/// forward
 template<typename ...Args>
 struct optional_sumtype;
 
+/// sumtype aka algebrical data type
 template <typename... Args>
 class sumtype
 {
@@ -329,19 +388,22 @@ public:
 	// type to int: compiletype vs runtime
 	// int to type: compiletype vs runtime
 
-	// byindex<index>::type => gives T as type 
+	/// helper
+	/// byindex<index>::type => gives T as type 
 	template <size_t index>
 	struct byindex : find_index<index,0,Args...>
 	{
 	};
 
-	// bytype<T>::index => gives value or -1 
+	/// helper
+	/// bytype<T>::index => gives value or -1 
 	template <class T>
 	struct bytype : find_type<T,0,Args...>
 	{
 	};
 
-	// bytype<T>::index => gives value or -1 
+	/// helper
+	/// bytype<T>::index => gives value or -1 
 	template <class T>
 	struct bytypeex : find_typeex<T,0,Args...>
 	{
@@ -402,6 +464,8 @@ public:
 		return *this;
 	}
 
+	/// returns the reference to the content given type
+	/// if the type is not active it generates an exception
 	template <class T>
 	T & gettype()
 	{
@@ -415,6 +479,8 @@ public:
 			throw std::bad_exception();
 	}
 
+	/// given index returns a reference to the type
+	/// if the index is not active it generates an exception
 	template <int k>
 	typename byindex<k>::type & getindex()
 	{
@@ -514,6 +580,7 @@ protected:
 	};
 };
 
+/// variant of the sumtype with the nil status
 template<typename ...Args>
 struct optional_sumtype: public sumtype<Args...>
 {
@@ -525,12 +592,16 @@ public:
 
 	optional_sumtype()  {}
 
+	/// true if something in the sumtype
 	operator bool () const { return index() != -1; }
 
+	/// makes it nil
 	void clear() { ((selffull*)this)->dtor(); };
 
+	/// returns the index in the Args
 	int index() const { return ((selffull*)this)->index(); }
 
+	/// returns the size of the content
 	int size() const
 	{
 		return index() == -1 ? 0 : rtype::size(index());
